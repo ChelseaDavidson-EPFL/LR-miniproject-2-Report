@@ -1,30 +1,146 @@
-\section{Methodology} \label{methodology}
-In this section, the methodology is presented that was used to create the policy for reinforcement learning of the quadruped. First, the \ac{cpg} needs to be implemented. This is done in the \texttt{run\_cpg.py}-file. The presentation of the approach follows the order of the functions in the code-file. First, we altered the pd gains for the Cartesian system, $k_p$ was set to $k_p = \begin{bmatrix}
-1200 & 2000 & 1200
-\end{bmatrix}^\intercal$
- and $k_d$ was set to $k_d=
-\begin{bmatrix}
-45 & 20 & 45
-\end{bmatrix}^\intercal$.
-It shows that that proportional gain is two orders of magnitude larger than the derivative one. Afterwards, the desired foot position for each leg is determined, consisting of the $x$, $y$, and $z$ coordinates. The left and right feet are distinguished by the sign function to account for the dimension of the hip.  Thereafter the desired foot velocity is obtained from the function
-\texttt{env.robot.ComputeInverseKinematics(i, leg\_xyz\_des)}.
-Then, the jacobian, position and velocity in leg frame are calculated if the the contribution of the cartesian is set to true. In this part the actual and desired feet positions as well as joint angles are set. Afterwards, the \ac{cpg}-states, the amplitude $r$ and the phase $\theta$ are saved as well as their corresponding derivatives $\dot{r}$ and $\dot{\theta}$.
-Once the state data has been collected, the plots can be genereated, depending on which options are enabled. For \ac{cpg} plotting, the code produces four time-series plots showing the four above mentioned \ac{cpg} variables of the chosen leg with the phase limited to the interval $\left[ - \pi, \pi \right]$. The plots can be used to help debugging the code as it shows if the parameters are displayed as expected.
-Furthermore, the quality of the resulting locomotion gets evaluated. This is achieved by plotting the actual and desired foot trajectories in Cartesian space for $x$, $y$, and $z$ coordinates each enabling a precise monitoring of the targeted foot motion over time. It not only shows the difference between actual and desired position but also give insight about the general motion smoothness. 
-Finally, the code is implemented to plot the joint tracking performance. If activated, the joint angles for one of four legs are plotted, capturing hip, thigh, and calf joints for time. Again, the actual and desired angles are recorded simultaneously. That provides the same insights as described for the foot placement above.
-The plotting is crucial as it provides insights into the overall \ac{cpg} performance. As this is the foundation for the \ac{rl} part, the plots enables us to verify whether the \ac{cpg} is corretly implemented.
+\section{Methodology}
 
-\begin{enumerate}
-    % Plot of CPG states
-    \item 
-    % A plot comparing the desired foot position vs actual foot position
-    \item
-    % A plot comparing the desired joint angles vs actual joint angles
-    \item 
-    % Hyperparameters: For hyperparameters we changed the cartesin Kp and Kd contributions. We handtuned them from being uniform, to improve the tracking for y-movement, so it doesn't veer to much to the sides.
-    \item 
-    % Videos
-    \item 
-    % Discussion on feedback loop
-    \item 
-\end{enumerate}
+\subsection{Quadruped Model and Control}
+
+The quadruped robot consists of four legs, each with three actuated joints (hip, thigh, calf), resulting in a 12-DoF actuation space. Joint torques are applied through a torque-controlled motor model. Forward and inverse kinematics, as well as Jacobian computation, are used extensively to map between joint space and Cartesian foot space.
+
+Joint-space PD control is implemented as
+\begin{equation}
+\tau_{\text{joint}} = K_{p,j}(q_d - q) + K_{d,j}(\dot{q}_d - \dot{q}),
+\end{equation}
+while Cartesian-space PD control computes desired foot forces and maps them to joint torques using the Jacobian transpose:
+\begin{equation}
+\tau_{\text{cart}} = J^\top(q)\left[K_{p,c}(p_d - p) + K_{d,c}(\dot{p}_d - \dot{p})\right].
+\end{equation}
+
+\subsection{Central Pattern Generators}
+
+Each leg is driven by a Hopf oscillator with amplitude $r_i$ and phase $\theta_i$. The oscillator dynamics follow
+\begin{align}
+\dot{r}_i &= \alpha(\mu - r_i^2)r_i, \\
+\dot{\theta}_i &= \omega_i + \sum_j r_j w_{ij}\sin(\theta_j - \theta_i - \phi_{ij}),
+\end{align}
+where coupling matrices $\phi_{ij}$ define the gait. For a trot gait, diagonal leg pairs operate in phase, with a $\pi$ phase offset between pairs.
+
+The oscillator phase determines stance and swing, and CPG outputs are mapped to Cartesian foot trajectories in the sagittal plane. The resulting desired foot positions are tracked using inverse kinematics and PD control.
+
+\subsection{Reinforcement Learning Formulation}
+
+Following the CPG-RL framework \cite{bellegarda2022cpg}, reinforcement learning is used to modulate CPG parameters. We assume velocity control refers to linear world-frame velocity commands.
+
+\subsubsection{Observation Space}
+
+To evaluate the optimal observation space, a CPG velocity controller was trained for 1 million timesteps to follow a fixed velocity of [1.0, 0, 0] m/s on flat terrain for each of the following observation spaces:
+\begin{itemize}
+    \item \textbf{Full}: velocity commands, body orientation, linear and angular velocity, joint positions and velocities, foot contacts, previous action, and CPG states
+    \item \textbf{Medium}: full observation without joint states and previous action
+    \item \textbf{Minimal}: foot contacts and CPG states only
+\end{itemize}
+
+Based on performance and robustness considerations, the medium observation space was selected for all subsequent experiments.
+
+\subsubsection{Action Space}
+
+We compare two action spaces:
+\begin{itemize}
+    \item Cartesian foot position modulation with Cartesian PD control
+    \item CPG parameter modulation (CPG-RL)
+\end{itemize}
+To enable accurate comparison, the observation space and reward function are kept the same, aside from removing CPG states from the Cartesian PD's action space implementation.
+
+\subsubsection{Reward Function}
+
+The reward function is based on the CPG-RL framework proposed by Bellegarda and Ijspeert~\cite{bellegarda2022cpg} and is designed to encourage accurate planar velocity tracking while penalizing unstable motion and excessive energy usage. At each control timestep, the total reward is computed as a weighted sum of several terms and scaled by the policy timestep $\Delta t$.
+
+The reward shaping function used for velocity tracking is defined as
+\begin{equation}
+f(x) = \exp\left(-\frac{\|x\|^2}{0.25}\right),
+\end{equation}
+which provides smooth gradients and strongly penalizes large tracking errors while remaining tolerant to small deviations.
+
+\paragraph{Velocity Tracking}
+To track the commanded body-frame planar velocities $\mathbf{v}_b^* = [v_x^*, v_y^*]^\top$, we include exponential rewards for forward and lateral velocity errors:
+\begin{align}
+r_{v_x} &= f(v_x^* - v_{b,x}), \\
+r_{v_y} &= f(v_y^* - v_{b,y}),
+\end{align}
+where $v_{b,x}$ and $v_{b,y}$ denote the current body-frame linear velocities.
+
+\paragraph{Stability Penalties}
+To discourage unstable motions, we include quadratic penalties on the vertical body velocity and roll/pitch angular velocities:
+\begin{align}
+p_{v_z} &= -v_{b,z}^2, \\
+p_{\omega_{xy}} &= -(\omega_{b,x}^2 + \omega_{b,y}^2),
+\end{align}
+where $v_{b,z}$ is the vertical linear velocity and $\omega_{b,x}, \omega_{b,y}$ are the roll and pitch angular velocities of the base.
+
+\paragraph{Energy (Work) Penalty}
+To promote energy-efficient and smooth actuation, a work-based penalty is included:
+\begin{equation}
+p_{\text{work}} = -\left|\boldsymbol{\tau}^\top (\dot{\mathbf{q}}_t - \dot{\mathbf{q}}_{t-1})\right|,
+\end{equation}
+where $\boldsymbol{\tau}$ are the motor torques and $\dot{\mathbf{q}}_t$, $\dot{\mathbf{q}}_{t-1}$ are the current and previous joint velocities, respectively. This term penalizes rapid torque-induced changes in joint velocity.
+
+\paragraph{Total Reward}
+The total reward at each timestep is given by
+\begin{align}
+r = \Delta t \Big(
+&0.75\, r_{v_x}
++ 0.75\, r_{v_y}
++ 2.00\, p_{v_z} \nonumber \\
+&+ 0.05\, p_{\omega_{xy}}
++ 0.001\, p_{\text{work}}
+\Big),
+\end{align}
+where $\Delta t$ is the policy timestep, defined as the product of the simulator timestep and the action repeat.
+
+This reward formulation prioritizes accurate planar velocity tracking as the primary objective, enforces vertical and rotational stability as secondary objectives, and lightly regularizes energy usage to encourage smooth and efficient locomotion.
+
+\subsubsection{Learning Algorithm}
+
+We use Proximal Policy Optimization (PPO) to train the locomotion controllers. PPO is an on-policy policy-gradient method that is widely used in robotics due to its strong training stability and robustness in continuous-control tasks. It has been successfully applied to legged locomotion, including the CPG-RL framework on which our approach is based~\cite{bellegarda2022cpg}. Compared to off-policy methods such as Soft Actor-Critic (SAC), PPO trades sample efficiency for more conservative and stable policy updates, which is well suited to physics-based locomotion.
+
+\paragraph{Hyperparameters}
+We use the default PPO hyperparameters provided with the framework and do not perform extensive tuning, as PPO is known to be sensitive to hyperparameter changes. A high discount factor ($\gamma = 0.99$) encourages long-horizon planning, which is important for maintaining balance and consistent velocity tracking. Rollouts of $n_{\text{steps}} = 4096$ environment steps are collected per policy update, improving gradient estimates.
+
+Generalized Advantage Estimation with $\lambda = 0.95$ balances bias and variance in the policy gradients. PPO’s clipped objective, with clipping range $\epsilon = 0.2$, limits the magnitude of policy updates and improves training stability. Additional stabilization is provided by gradient clipping (maximum norm $0.5$), value function clipping (1.0), and a value loss coefficient of $0.5$. Training is performed using minibatches of size 128 over 10 epochs per update. No explicit entropy regularization is used ($\text{ent\_coef} = 0.0$).
+
+\paragraph{Neural Network Architecture}
+The policy and value functions share a multilayer perceptron (MLP) feature extractor. This shared representation improves learning efficiency and consistency between action selection and value estimation.
+
+\paragraph{Effect on Policy Performance}
+PPO’s clipped updates, high discount factor, and stable advantage estimation resulted in smooth and reliable locomotion policies that accurately track commanded velocities. The conservative update scheme produced stable and natural gaits without requiring extensive hyperparameter tuning.
+
+\subsection{Environment Details}
+To improve training stability and policy robustness, we progressively modified the environment using a curriculum learning and domain randomization strategy. Rather than training all task variations from scratch, we used pre-trained policies to initialize more challenging tasks. This ensured that each subsequent controller already possessed a stable walking gait before being exposed to increased task complexity.
+
+\paragraph{Curriculum Learning with Pre-Training}
+We structured training in stages, where each policy served as the initialization for the next, more difficult environment.
+\begin{itemize}
+
+\item Velocity Controller Curriculum:
+\begin{itemize}
+    \item Tracking a fixed commanded velocity [1,0,0]
+    \item Tracking randomized commanded planar velocities
+\end{itemize}
+
+\item Slope Controller Curriculum:
+\begin{itemize}
+    \item Tracking a fixed velocity [1,0,0] on flat terrain
+    \item Tracking a fixed velocity on a fixed slope with pitch of 0.20
+    \item Tracking a fixed velocity on randomized slope pitches ranging from 0.05 to 0.30
+\end{itemize}
+\end{itemize}
+
+This curriculum allowed the policy to first learn basic locomotion dynamics before addressing more complex terrain and command variations, significantly improving convergence speed and training stability.
+
+\paragraph{Velocity and Terrain Randomisation}
+During training of the final velocity and slope controller, randomized commanded velocities and slope pitches were used. This domain randomisation aimed to improve the policy’s ability to generalize across different motion commands and terrains. 
+
+Instead of overfitting to a single forward speed, the velocity control policy would learn a continuous mapping between velocity commands and locomotion behavior, resulting in smoother transitions and better command tracking at test time. Similarly, randomizing the slope pitch for the slope controller prevents overfitting to a specific slope angle and encourages the development of adaptive gait strategies that remain stable across unseen terrain configurations.
+
+\paragraph{Noise Injection}
+To further improve robustness, we experimented with injecting random noise into the environment to simulate modeling errors and sensor uncertainty. Specifically, we increased the noise magnitude from 0.01 to 0.04 in the observation and/or actuation channels. For all other experiments and model trainings, a noise level of 0.01 was used. Training under noisy conditions helps prevent overfitting to an ideal simulator and encourages the policy to rely on more stable, high-level patterns rather than precise state estimates.
+
+
+

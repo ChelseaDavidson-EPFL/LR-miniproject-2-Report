@@ -1,1 +1,185 @@
-\section{Results} \label{results}
+\section{Results}
+
+\subsection{CPG State Evolution}
+
+Fig.~\ref{fig:cpg_states} shows the CPG states for a trot gait over two gait cycles. Diagonal leg pairs (FR--RL and FL--RR) evolve in phase, with a $\pi$ phase offset between pairs. The oscillator amplitude converges smoothly to $\sqrt{\mu}$, and the phase derivative switches cleanly between swing and stance frequencies.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{images/CPG_States_TROT_unwrapped.png}
+    \caption{CPG states for Trot Gait}
+    \label{fig:cpg_states}
+\end{figure}
+
+\subsection{Tracking Performance}
+To perform both feet and joint tracking, Joint and Cartesian PD was used with the following gains:
+\begin{itemize}
+    \item \textbf{$K_{p,Joint}$}: [100,100,100]
+    \item \textbf{$K_{d,Joint}$}: [2, 2, 2]
+    \item \textbf{$K_{p,Cartesian}$}: diag(1200, 2000, 1200)
+    \item \textbf{$K_{d,Cartesian}$}: diag(45, 20, 45)
+\end{itemize}
+
+Moderate joint PD gains provide baseline stability, while Cartesian PD gains dominate tracking performance; appropriately tuned task-space stiffness improves both foot and joint tracking, whereas excessive Cartesian gains degrade performance due to over-constrained contact dynamics.
+
+
+\paragraph{Foot Tracking Performance}
+Using joint-space PD control alone results in poor Cartesian foot tracking and causes the robot to collapse (see Figure ~\ref{fig:footTrack_jointPD}). This is expected, as joint PD does not directly regulate foot position or compensate for contact forces.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{images/CPG_desiredVsActualFeetPos_JustJointPD.png}
+    \caption{Foot Tracking performance using Joint PD only}
+    \label{fig:footTrack_jointPD}
+\end{figure}
+
+
+Adding Cartesian PD dramatically improves tracking performance (see Figure ~\ref{fig:footTrack_cartPD}). The actual foot trajectory closely follows the desired path in all directions, particularly in the sagittal plane. Increasing the Cartesian lateral stiffness beyond nominal values degraded tracking due to over-constraining the contact dynamics (see Figure ~\ref{fig:footTrack_cartPD_high}).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{images/CPG_desiredVsActualFeetPos_JointAndCartesianPD.png}
+    \caption{Foot Tracking performance using Cartesian and Joint PD}
+    \label{fig:footTrack_cartPD}
+\end{figure}
+
+\paragraph{Joint Tracking Performance}
+
+Joint-space tracking performance improves significantly when Cartesian PD feedback is added on top of the joint-level controller. With only joint PD, noticeable tracking errors are observed as external contact forces and unmodeled dynamics introduce disturbances that cannot be fully compensated by independent joint-space feedback. This leads to deviations from the desired joint trajectories.
+
+By introducing Cartesian PD control, these disturbances are indirectly regulated through task-space constraints. The Cartesian controller enforces accurate foot position and velocity tracking, which in turn constrains the joint motion through the robot’s kinematic structure. As a result, joint trajectories become more consistent and exhibit reduced oscillations, even though the Cartesian controller does not explicitly act in joint space.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{images/CPG_desiredVsActualJointPos_JustJointPD.png}
+    \caption{Joint Tracking performance using Joint PD only}
+    \label{fig:jointTrack_jointPD}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{images/CPG_desiredVsActualJointPos_JointAndCartesianPD_BETTER.png}
+    \caption{Joint Tracking performance using Joint and Cartesian PD}
+    \label{fig:jointTrack_CartPD}
+\end{figure}
+
+\subsection{Locomotion Speed, Gait Timing, and Efficiency}
+
+\paragraph{Key Hyperparameters Tuned}
+In order to achieve stable gaits for different locomotion speeds, the following parameters were necessary to tune. The sets shown express the values required to achieve slow, nominal, and fast trotting gaits respectively. 
+\begin{table}[h]
+\centering
+\caption{Tuned CPG and Cartesian control parameters for slow, nominal, and fast trotting gaits.}
+\begin{tabular}{l c c c >{\raggedright\arraybackslash}p{2.6cm}}
+\hline
+\textbf{Parameter} & \textbf{Slow} & \textbf{Nominal} & \textbf{Fast} & \textbf{Role} \\
+\hline
+Swing frequency $\omega_{\text{swing}}$ (rad/s) & $1.5\cdot2\pi$ & $5\cdot2\pi$ & $9\cdot2\pi$ & Sets swing cadence \\
+Stance frequency $\omega_{\text{stance}}$ (rad/s) & $0.5\cdot2\pi$ & $2\cdot2\pi$ & $4\cdot2\pi$ & Controls duty cycle \\
+Step length $\ell_{\text{step}}$ (m) & 0.015 & 0.05 & 0.09 & Determines forward speed \\
+Ground clearance $h_{\text{clear}}$ (m) & 0.05 & 0.07 & 0.08 & Avoids foot scuffing \\
+Ground penetration $d_{\text{pen}}$ (m) & 0.003 & 0.01 & 0.02 & Contact compliance \\
+PD gain scale $\alpha_{p,d}$ & 0.7 & 1.0 & 1.5 & Cartesian stiffness and damping \\
+\hline
+\end{tabular}
+\end{table}
+
+
+
+\paragraph{Gait Analysis Terms}
+\begin{table}[H]
+\centering
+\caption{Gait timing and performance metrics.}
+\begin{tabular}{l l}
+\hline
+\textbf{Quantity} & \textbf{Definition} \\
+\hline
+Swing duration $T_{\text{swing}}$ & $\displaystyle \frac{\pi}{\omega_{\text{swing}}}$ \\
+Stance duration $T_{\text{stance}}$ & $\displaystyle \frac{\pi}{\omega_{\text{stance}}}$ \\
+Step duration $T_{\text{step}}$ & $T_{\text{swing}} + T_{\text{stance}}$ \\
+Duty cycle $D$ & $\displaystyle \frac{T_{\text{stance}}}{T_{\text{step}}}$ \\
+Cost of Transport (CoT) & $\displaystyle \frac{\int_0^T \sum_i |\tau_i \dot{q}_i|\,dt}{mgd}$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Achieved Locomotion Regimes}
+\begin{itemize}
+    \item \textbf{Slow trot}
+    \\Refer to Video TROT\_LOW\_0.025ms.mp4
+    \begin{itemize}
+        \item Forward velocity: $v = 0.025\,\mathrm{m/s}$
+        \item Swing duration: $T_{\text{swing}} = \text{0.333}\,\mathrm{s}$
+        \item Stance duration: $T_{\text{stance}} = \text{1.0}\,\mathrm{s}$
+        \item Step duration: $T_{\text{step}} = \text{1.3}\,\mathrm{s}$
+        \item Duty cycle: $D = \text{0.7}$
+        \item Cost of Transport: $\mathrm{CoT} = 4.325$
+    \end{itemize}
+
+    \item \textbf{Nominal trot}
+    \\Refer to Video TROT\_NOMINAL\_0.384.mp4
+    \begin{itemize}
+        \item Forward velocity: $v = 0.384\,\mathrm{m/s}$
+        \item Swing duration: $T_{\text{swing}} = \text{0.1}\,\mathrm{s}$
+        \item Stance duration: $T_{\text{stance}} = \text{0.25}\,\mathrm{s}$
+        \item Step duration: $T_{\text{step}} = \text{1.3}\,\mathrm{s}$
+        \item Duty cycle: $D = \text{0.71}$
+        \item Cost of Transport: $\mathrm{CoT} = 0.865$
+    \end{itemize}
+
+    \item \textbf{Fast trot}
+    \\Refer to Video TROT\_HIGH\_1.483ms.mp4
+    \begin{itemize}
+        \item Forward velocity: $v = 1.483\,\mathrm{m/s}$
+        \item Swing duration: $T_{\text{swing}} = \text{0.0556}\,\mathrm{s}$
+        \item Stance duration: $T_{\text{stance}} = \text{0.125}\,\mathrm{s}$
+        \item Step duration: $T_{\text{step}} = \text{1.806}\,\mathrm{s}$
+        \item Duty cycle: $D = \text{0.69}$
+        \item Cost of Transport: $\mathrm{CoT} = 1.082$
+    \end{itemize}
+\end{itemize}
+Very slow gaits exhibited high CoT due to prolonged stance phases and low dynamic efficiency. Moderate-speed trots achieved the lowest CoT by balancing dynamic motion with stable foot contact.
+
+\subsection{Reinforcement Learning Results}
+
+\paragraph{Observation Space}
+
+As shown in the Figures \ref{fig:min_obs}, \ref{fig:med_obs}, \ref{fig:full_obs} and Videos, the minimal observation space performed the worst, exhibiting the largest velocity tracking errors, a tentative gait, and occasional failure during early execution. While additional training could potentially improve performance, the paper highlighted that this task is only suited to move forward at a particular desired velocity. Therefore, the minimal observation space appears unsuitable for this project.
+
+In contrast, the full and medium observation spaces yielded very similar performance in both the quantitative metrics and qualitative gait behavior. ~\cite{bellegarda2022cpg} reports that the medium observation space is expected to be more robust, as it excludes joint-level sensory information that can be noisy on real hardware and may unnecessarily increase policy sensitivity. Furthermore, since the inclusion of additional observations in the full observation space did not result in noticeable performance gains, the increased computational and sensory complexity is not justified. Therefore, the medium observation space was selected for both the final velocity and slope controller.
+
+Including the linear and angular velocities enable accurate velocity tracking and balance control. Base orientation informs the policy of body posture, allowing correction of pitch and roll disturbances. Joint positions and velocities are essential for coordinating the CPG outputs with the robot’s actual limb configuration and dynamics. CPG phase information is provided to synchronize learned residual actions with the underlying rhythmic gait structure. Finally, commanded velocity inputs are included to condition the policy on the desired motion objective.
+
+
+\paragraph{Action Space}
+As seen in Figures \ref{fig:cpg_action} and \ref{fig:cartPD_action} and their corresponding videos, the CPG action space produced the most natural locomotion with superior velocity tracking. In contrast, the Cartesian PD controller caused the robot to appear as if it were “tiptoeing” rapidly. This behavior arises because the controller focuses solely on foot positions in the Cartesian frame; at 1m/s, the learned policy favors small, fast movements to achieve the target velocity. While incorporating joint positions and velocities and constraining joint speeds could encourage larger, more natural strides, this was not possible with the medium observation space.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{images/Cartesian_PD_Velocity.png}
+    \caption{Cartesian PD Velocity Tracking}
+    \label{fig:cartPD_action}
+\end{figure}
+
+
+Comparing the training plots in \ref{fig:cartPD_action_train}, \ref{fig:cartPD_action_train_reward} and \ref{fig:cpg_action_train}, \ref{fig:CPG_action_train_reward} the Cartesian PD controller exhibits a steeper learning curve, as the action space is inherently less stable and early training focuses on achieving basic stability. In contrast, the CPG action space is more stable by design, resulting in a shallower learning curve and allowing training to focus on optimizing performance rather than merely maintaining balance. Additionally, the CPG requires fewer parameters to learn, further contributing to efficient training.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{images/CartesianPD_PPO_Ep_Len.png}
+    \caption{Cartesian PD Training Episode Length}
+    \label{fig:cartPD_action_train}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\textwidth]{images/CPG_PPO_Ep_Len.png}
+    \caption{CPG Training Episode Length}
+    \label{fig:cpg_action_train}
+\end{figure}
+
+\paragraph{Impact of Environment Details}
+The effect of curriculum learning can be seen in Figure \ref{fig:no_curriculum} which performed considerably worse than \ref{fig:slope_controller}. The effect of domain randomisation can be seen in Figure \ref{fig:slope_different_height} where the controller was able to climb up an unseen incline level. While these environmental additions improved robustness, increasing the noise from 0.01 to 0.04, significantly degraded the training performance. The higher noise magnitude disrupted the policy’s ability to accurately estimate the robot’s state, leading to unstable learning dynamics and poorer locomotion performance. This indicated that excessive noise overwhelmed the learning signal. This result highlights a trade-off between robustness and learnability: while moderate noise can improve generalization, overly aggressive noise injection can hinder training and reduce final policy performance.
+
+
+
+

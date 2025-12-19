@@ -1,4 +1,14 @@
 \section{Introduction}
-This report presents the results of the mini-project 2 of group 17. The assignment split into two parts. The first part covers the \ac{cpg} and the second part covers the \ac{rl}.
 
-The rest of the report is structured as follows. Chapter \ref{methodology} presents the methodology. Afterwards, the results are presented in chapter \ref{results}, followed by a disucssion of the result in chapter \ref{discussion}. Finally, the report draws a conlcusion in chapter \ref{conclusion}.
+Quadruped locomotion remains a central challenge in legged robotics due to the complex interaction between high-dimensional dynamics, intermittent ground contact, and the need for robustness across varying speeds and terrains. Two major paradigms have emerged to address this problem: biologically inspired controllers such as Central Pattern Generators (CPGs), and data-driven approaches based on deep reinforcement learning (DRL).
+
+In this project, we investigate and compare these paradigms for quadruped locomotion using a simulated A1-like robot in PyBullet. In the first part, we design open-loop locomotion controllers based on coupled Hopf oscillators, mapping rhythmic CPG outputs to Cartesian foot trajectories and tracking them using joint-space and Cartesian-space proportional–derivative (PD) control. Multiple gaits are implemented, with a focus on stable trot locomotion across a range of speeds.
+
+In the second part, we design a Markov Decision Process (MDP) and train locomotion policies using deep reinforcement learning, following the CPG-RL framework proposed by Bellegarda and Ijspeert \cite{bellegarda2022cpg}. Reinforcement learning is used to modulate CPG parameters rather than directly commanding joints, combining the inherent stability of rhythmic control with the adaptability of learning-based methods. Both velocity-tracking and task-specific controllers are trained and evaluated.
+
+The contributions of this report are threefold:
+\begin{itemize}
+    \item A systematic evaluation of CPG-based locomotion with joint and Cartesian PD tracking
+    \item A comparison of observation and action space design choices for CPG-RL
+    \item An analysis of robustness, performance, and extensibility for both classical and learning-based controllers
+\end{itemize}

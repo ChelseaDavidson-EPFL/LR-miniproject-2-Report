@@ -1,1 +1,23 @@
-\section{Discussion} \label{discussion}
+\section{Discussion}
+\subsection{CPG Locomotion Controller}
+\paragraph{Joint and Cartesian PD Control}
+Cartesian PD control is essential for stabilizing CPG-based locomotion, particularly during stance. While joint PD alone is insufficient, task-space feedback allows the controller to generate stabilizing ground reaction forces.
+
+\paragraph{Potential Extension of Controller}
+The current controller combines an open-loop Hopf CPG with joint-space and Cartesian PD tracking, which enables stable periodic locomotion but limits adaptability. This framework can be extended through sensory feedback and descending control signals to support more versatile behaviors.
+
+Low-level feedback such as body velocity, foot contact, and body orientation can be used to modulate CPG frequency, phase, and leg amplitude online, improving speed regulation, contact synchronization, and balance. Descending control signals allow higher-level modulation of locomotion without altering the oscillator structure: forward speed can be adjusted via step length and frequency, heading via asymmetric leg modulation, and gait transitions via changes in oscillator phase coupling. Foot placement can be refined by adding task-space offsets to the Cartesian trajectories.
+
+A hierarchical control structure could further integrate a high-level planner or learning-based policy that provides descending commands (e.g., speed, gait, heading), while the CPG and PD controllers handle low-level rhythm generation and tracking, mirroring biological locomotion.
+
+
+\subsection{Reinforcement Learning}
+\paragraph{Robustness}
+Our approach shows good robustness in simulation due to the use of curriculum learning, command and terrain randomization, and the inclusion of observation and actuation noise during training (noise level of 0.1). 
+The use of a CPG-based controller further improves robustness by enforcing rhythmic, smooth locomotion patterns. Since the policy modulates CPG parameters instead of directly commanding joint torques or positions, the resulting motions are more regular and less sensitive to small disturbances, delays, or modeling errors. This structure also reduces the effective control complexity, which helps stabilize learning and execution.
+
+\paragraph{Sim-to-Sim}
+Sim-to-sim transfer is expected to work reasonably well if the robot model and control interface are similar. However, differences in physics engines, contact modeling, friction, timestep size, and actuator dynamics can still degrade performance.
+
+\paragraph{Sim-to-Real}
+Sim-to-real transfer is more challenging. Potential issues include unmodeled actuator dynamics, torque and velocity limits, sensor noise, latency, inaccurate mass and inertia parameters, and differences in ground contact behavior. Although training with noise and using a CPG-based policy improves robustness, additional domain randomization including adding/subtracting mass/inertia from various links, varying the coefficient of friction, varying the terrain more (add small boxes etc.), and increasing the noise would improve robustness when transferring this policy to hardware.
