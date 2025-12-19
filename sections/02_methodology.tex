@@ -1,0 +1,30 @@
+\section{Methodology} \label{methodology}
+In this section, the methodology is presented that was used to create the policy for reinforcement learning of the quadruped. First, the \ac{cpg} needs to be implemented. This is done in the \texttt{run\_cpg.py}-file. The presentation of the approach follows the order of the functions in the code-file. First, we altered the pd gains for the Cartesian system, $k_p$ was set to $k_p = \begin{bmatrix}
+1200 & 2000 & 1200
+\end{bmatrix}^\intercal$
+ and $k_d$ was set to $k_d=
+\begin{bmatrix}
+45 & 20 & 45
+\end{bmatrix}^\intercal$.
+It shows that that proportional gain is two orders of magnitude larger than the derivative one. Afterwards, the desired foot position for each leg is determined, consisting of the $x$, $y$, and $z$ coordinates. The left and right feet are distinguished by the sign function to account for the dimension of the hip.  Thereafter the desired foot velocity is obtained from the function
+\texttt{env.robot.ComputeInverseKinematics(i, leg\_xyz\_des)}.
+Then, the jacobian, position and velocity in leg frame are calculated if the the contribution of the cartesian is set to true. In this part the actual and desired feet positions as well as joint angles are set. Afterwards, the \ac{cpg}-states, the amplitude $r$ and the phase $\theta$ are saved as well as their corresponding derivatives $\dot{r}$ and $\dot{\theta}$.
+Once the state data has been collected, the plots can be genereated, depending on which options are enabled. For \ac{cpg} plotting, the code produces four time-series plots showing the four above mentioned \ac{cpg} variables of the chosen leg with the phase limited to the interval $\left[ - \pi, \pi \right]$. The plots can be used to help debugging the code as it shows if the parameters are displayed as expected.
+Furthermore, the quality of the resulting locomotion gets evaluated. This is achieved by plotting the actual and desired foot trajectories in Cartesian space for $x$, $y$, and $z$ coordinates each enabling a precise monitoring of the targeted foot motion over time. It not only shows the difference between actual and desired position but also give insight about the general motion smoothness. 
+Finally, the code is implemented to plot the joint tracking performance. If activated, the joint angles for one of four legs are plotted, capturing hip, thigh, and calf joints for time. Again, the actual and desired angles are recorded simultaneously. That provides the same insights as described for the foot placement above.
+The plotting is crucial as it provides insights into the overall \ac{cpg} performance. As this is the foundation for the \ac{rl} part, the plots enables us to verify whether the \ac{cpg} is corretly implemented.
+
+\begin{enumerate}
+    % Plot of CPG states
+    \item 
+    % A plot comparing the desired foot position vs actual foot position
+    \item
+    % A plot comparing the desired joint angles vs actual joint angles
+    \item 
+    % Hyperparameters: For hyperparameters we changed the cartesin Kp and Kd contributions. We handtuned them from being uniform, to improve the tracking for y-movement, so it doesn't veer to much to the sides.
+    \item 
+    % Videos
+    \item 
+    % Discussion on feedback loop
+    \item 
+\end{enumerate}
